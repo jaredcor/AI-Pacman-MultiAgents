@@ -72,19 +72,33 @@ class ReflexAgent(Agent):
         newFood = successorGameState.getFood()
         newGhostStates = successorGameState.getGhostStates()
         newScaredTimes = [ghostState.scaredTimer for ghostState in newGhostStates]
+        
         # Few things that you might need
         newFood = newFood.asList() # list of all foods
         GhostPosition = [(G.getPosition()[0], G.getPosition()[1]) for G in newGhostStates] # list of all ghost positions
         closestFoodDistance = sorted(newFood, key=lambda fDist: util.manhattanDistance(fDist, newPos)) # Distance to the clostest food 
         closestGhostDistance = sorted(GhostPosition, key=lambda gDist: util.manhattanDistance(gDist, newPos)) # Distance to the clostest ghost
+        
         "*** CS3368 YOUR CODE HERE ***"
         "Decribe your function:"
         """ What to do: 
-        1. check for failute: return -1 if the ghosts are not scared and you have failed
+        1. check for failure: return -1 if the ghosts are not scared and you have failed
         2. check if you have eaten a food, return 1 in this case
         3. Use the distance to closest dot distance and the  distance to the closest ghost to estimate an evaluation function
         """
-        return successorGameState.getScore()
+        ghostScared = min(newScaredTimes) > 0
+        # 1. check for failure
+        if not ghostScared and (newPos in GhostPosition): # return -1 if the ghosts are not scared and pacman has failed
+            return -1
+        # 2. check if pac has eaten a food
+        if newPos in currentGameState.getFood().asList():
+            return 1
+        
+        # 3. use closestFoodDistance and closestGhostDistance to estimate an evaluation func
+        # manhattan distance from closest food/ghost to current pac position
+        # return util.manhattanDistance(closestFoodDistance[0], newPos) - util.manhattanDistance(closestGhostDistance[0], newPos)
+        # trying the reciprocal of these values rather than just the values themselves
+        return 1.0/util.manhattanDistance(closestFoodDistance[0], newPos) - 1.0/util.manhattanDistance(closestGhostDistance[0], newPos)
 
 def scoreEvaluationFunction(currentGameState):
     """
@@ -152,6 +166,7 @@ class MinimaxAgent(MultiAgentSearchAgent):
         If a min, called your implimented min function
         If a max, called your implimented max function
         '''
+                
         util.raiseNotDefined()
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
