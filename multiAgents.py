@@ -76,8 +76,8 @@ class ReflexAgent(Agent):
         # Few things that you might need
         newFood = newFood.asList() # list of all foods
         GhostPosition = [(G.getPosition()[0], G.getPosition()[1]) for G in newGhostStates] # list of all ghost positions
-        closestFoodDistance = sorted(newFood, key=lambda fDist: util.manhattanDistance(fDist, newPos)) # Distance to the clostest food 
-        closestGhostDistance = sorted(GhostPosition, key=lambda gDist: util.manhattanDistance(gDist, newPos)) # Distance to the clostest ghost
+        closestFoodDistance = sorted(newFood, key=lambda fDist: manhattanDistance(fDist, newPos)) # Distance to the clostest food 
+        closestGhostDistance = sorted(GhostPosition, key=lambda gDist: manhattanDistance(gDist, newPos)) # Distance to the clostest ghost
         
         "*** CS3368 YOUR CODE HERE ***"
         "Decribe your function:"
@@ -98,7 +98,7 @@ class ReflexAgent(Agent):
         # manhattan distance from closest food/ghost to current pac position
         # return util.manhattanDistance(closestFoodDistance[0], newPos) - util.manhattanDistance(closestGhostDistance[0], newPos)
         # trying the reciprocal of these values rather than just the values themselves
-        return 1.0/util.manhattanDistance(closestFoodDistance[0], newPos) - 1.0/util.manhattanDistance(closestGhostDistance[0], newPos)
+        return 1.0/manhattanDistance(closestFoodDistance[0], newPos) - 1.0/manhattanDistance(closestGhostDistance[0], newPos)
 
 def scoreEvaluationFunction(currentGameState):
     """
@@ -159,15 +159,61 @@ class MinimaxAgent(MultiAgentSearchAgent):
         Returns whether or not the game state is a losing state
         """
         "*** CS3368 YOUR CODE HERE ***"
-        "PS. It is okay to d#efine your own new functions. For example, value, min_function,max_function"
+        "PS. It is okay to define your own new functions. For example, value, min_function,max_function"
         '''
         recursive implimentation 
         If it is a terminal return it value using self.evaluationFunction(state)
         If a min, called your implimented min function
         If a max, called your implimented max function
         '''
-                
-        util.raiseNotDefined()
+        # get all ghost index numbers
+        # start at 1 bc pacman is agent 0
+        ghostId = [i for i in range(1, gameState.getNumAgents())]
+        
+        # terminal conditions
+        def value(state, depth):
+            return state.isWin() or state.isLose() or depth == self.depth
+
+        # min function
+        # search for ghosts' actions that cause Pacman minimum score 
+        def min_function(state, depth, ghost):
+            if value(state, depth):
+                return self.evaluationFunction(state)
+            
+            val = float("inf")
+            for action in state.getLegalActions(ghost):
+                # if current ghost is the last one
+                if ghost == ghostId[-1]:
+                    # search for pacman action to generate the max value
+                    maxVal = max_function(state.generateSuccessor(ghost, action), depth + 1)
+                    val = min(val, maxVal)
+                else:
+                    # else find the minimum
+                    minVal = min_function(state.generateSuccessor(ghost, action), depth, ghost + 1)
+                    val = min(val, minVal)
+            
+            return val
+        
+        # max function
+        # search for Pacmans max value action
+        def max_function(state, depth):
+            if value(state, depth):
+                return self.evaluationFunction(state)
+            
+            val = float("-inf")
+            for action in state.getLegalActions(0):
+                minVal = min_function(state.generateSuccessor(0, action), depth, ghostId[0])
+                val = max(val, minVal)
+            
+            return val
+        
+        pacActions = gameState.getLegalActions(0)
+        # pair action and value from that action -> (action, value)
+        results = [(action, min_function(gameState.generateSuccessor(0, action), 0, ghostId[0])) for action in pacActions]
+        # sort by value 
+        results.sort(key=lambda k: k[1])
+        # return maximum value
+        return results[-1][0]
 
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
@@ -180,5 +226,77 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         """
         "*** CS5368 YOUR CODE HERE ***"
         "PS. It is okay to define your own new functions. For example, value, min_function,max_function"
-        util.raiseNotDefined()
+        # follow alpha-beta pseudocode in class slides
+        
+        currVal = float("-inf")
+        alpha = float("-inf")
+        beta = float("inf")
+        nextPacAction = Directions.STOP
+        
+        actions = gameState.getLegalActions(0).copy()
+        for action in actions:
+            nextState = gameState.generateSuccessor(0, action)
+            nextVal = self.value(nextState, 0, 1, alpha, beta)
+            
+            if nextVal > currVal:
+                currVal = nextVal
+                nextPacAction = action
+                
+            alpha = max(alpha, currVal)
+        return nextPacAction    
+    
+    def value(self, gameState, depth = 0, agentId = 0, alpha = float("-inf"), beta = float("inf")):
+        # using value function to choose best action
+        maxList = [0, ]
+        minList = list(range(1, gameState.getNumAgents()))
+        # if terminal            
+        if gameState.isWin() or gameState.isLose() or depth == self.depth:
+            return self.evaluationFunction(gameState)
+        elif agentId in maxList:
+            return self.max_function(gameState, depth, agentId, alpha, beta)
+        elif agentId in minList:                
+            return self.min_function(gameState, depth, agentId, alpha, beta)
+        
+    # alpha part: search for maximums 
+    # def max-value(state, alpha, beta) from slides
+    def max_function(self, gameState, depth, agentId, alpha = float("-inf"), beta = float("inf")):
+        # initialize v = -inf
+        val = float("-inf")
+        actions = gameState.getLegalActions(agentId)
+        # for each successor of state
+        for i, action in enumerate(actions):
+            nextVal = self.value(gameState.generateSuccessor(agentId, action), depth, agentId + 1, alpha, beta)
+            # v = max(v, value(successor, alpha, beta))
+            val = max(val, nextVal)
+            # if v >= beta return v
+            if val > beta:
+                return val
+            # alpha = max(alpha ,v)
+            alpha = max(alpha, val)
+        # return v
+        return val
+            
+    # beta part: search for minimums
+    # def min-value(state, alpha, beta)
+    def min_function(self, gameState, depth, agentId, alpha = float("-inf"), beta = float("inf")):
+        # initialize v = +inf
+        val = float("inf")
+        actions = gameState.getLegalActions(agentId)
+        # for each successor of state
+        for i, action in enumerate(actions):
+            # if last agent
+            if agentId == gameState.getNumAgents() - 1:
+                nextVal = self.value(gameState.generateSuccessor(agentId, action), depth + 1, 0, alpha, beta)
+                # v = min(v, value(successor, alpha, beta))
+                val = min(val, nextVal)
+                # if v <= alpha return v
+                if val < alpha:
+                    return val
+            else:
+                nextVal = self.value(gameState.generateSuccessor(agentId,action), depth, agentId + 1, alpha, beta)
+                val = min(val, nextVal)
+                if val < alpha:
+                    return val
+            beta = min(beta, val)
+        return val
 
